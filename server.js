@@ -8,6 +8,7 @@ const { URL } = require('url');
 const path = require('path'); // Tambahan penting untuk path file
 
 const app = express();
+app.use(express.static(path.join(__dirname)));
 const port = process.env.PORT || 8080;
 
 // Middleware
@@ -16,7 +17,7 @@ app.use(express.json());
 
 // PENTING: Mengatur folder untuk file statis (HTML, CSS, JS Frontend)
 // Ini memastikan index.html bisa dibaca oleh Vercel
-app.use(express.static(path.join(__dirname))); 
+app.use(express.static(path.join(__dirname)));
 
 // --- 1. KONEKSI DATABASE TURSO ---
 const db = createClient({
@@ -74,10 +75,10 @@ app.get('/api/lockers', async (req, res) => {
     try {
         const result = await db.execute(`SELECT *, locationCode AS lockerNumber, fileIndex AS fileIdx FROM lockers`);
         const items = result.rows.map(r => ({ ...r, index: r.fileIdx }));
-        
+
         // Sorting
         items.sort((a, b) => (a.lockerNumber || '').localeCompare(b.lockerNumber || '', undefined, { numeric: true }));
-        
+
         res.json(items);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -94,7 +95,7 @@ app.get('/api/lockers/export', async (req, res) => {
             itemName AS "Item Name", entryDate AS "Tanggal Masuk", expirationDate AS "Tanggal Exp", 
             manualStatus AS "Status Manual", manualNote AS "Keterangan Status", keterangan AS "Keterangan", fileIndex AS "Index"
             FROM lockers`;
-        
+
         const args = [];
         if (type) { sql += ` WHERE locationType = ?`; args.push(type); }
 
@@ -179,7 +180,7 @@ app.get('/api/masters', async (req, res) => {
         const l = resLockers.rows;
         l.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
         res.json({ owners: resOwners.rows, lockers: l });
-    } catch(e) { res.status(500).json({error: e.message}) }
+    } catch (e) { res.status(500).json({ error: e.message }) }
 });
 
 // CRUD Lockers
