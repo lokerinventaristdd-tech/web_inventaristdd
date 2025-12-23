@@ -9,7 +9,7 @@ const path = require('path'); // Tambahan penting untuk path file
 
 const app = express();
 app.use(express.static(path.join(__dirname)));
-const port = process.env.PORT || 8080;
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 // Middleware
