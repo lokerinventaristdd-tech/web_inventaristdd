@@ -393,3 +393,101 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
     text-align: left;
     white-space: normal !important;
 }
+/* =========================================
+   MODE RESPONSIF (KHUSUS HP & TABLET)
+   ========================================= */
+
+@media screen and (max-width: 768px) {
+
+    /* 1. Buka Kunci Scroll */
+    body {
+        height: auto;       /* Biarkan tinggi menyesuaikan isi */
+        overflow: auto;     /* Izinkan scroll halaman */
+        overflow-x: hidden; /* Cegah geser ke samping */
+    }
+
+    /* 2. Ubah Tata Letak (Sidebar di Atas, Konten di Bawah) */
+    .main-wrapper {
+        flex-direction: column; /* Tumpuk ke bawah */
+        height: auto;
+    }
+
+    /* 3. Atur Ulang Sidebar */
+    .left-sidebar {
+        width: 100%;        /* Lebar penuh */
+        height: auto;       /* Tinggi secukupnya */
+        padding: 15px;
+        border-right: none;
+        border-bottom: 2px solid var(--primary);
+        order: 1;           /* Sidebar muncul pertama */
+    }
+    
+    .sidebar-header h1 {
+        font-size: 20px;    /* Kecilkan judul */
+    }
+
+    /* 4. Atur Ulang Konten Kanan */
+    .right-content {
+        width: 100%;
+        height: auto;
+        order: 2;           /* Konten muncul kedua */
+        overflow: visible;  /* Biarkan memanjang ke bawah */
+    }
+
+    .content-area {
+        padding: 15px;      /* Kurangi jarak pinggir biar lega */
+        overflow: visible;
+    }
+
+    /* 5. Perbaiki Search Bar (Input & Tombol jadi susun ke bawah) */
+    .search-bar-container {
+        flex-direction: column; /* Susun ke bawah */
+        align-items: stretch;   /* Tarik sampai lebar penuh */
+        gap: 10px;
+    }
+
+    .search-input, .filter-select, #exportButton {
+        width: 100%;        /* Semua elemen jadi lebar penuh */
+        margin-bottom: 5px;
+    }
+
+    /* 6. Perbaiki Master Data (List Kiri & Kanan jadi Atas Bawah) */
+    .master-list-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .master-list {
+        width: 100%;
+        height: 200px; /* Batasi tinggi list agar tidak kepanjangan */
+        margin-bottom: 15px;
+    }
+
+    /* 7. Perbaiki Modal (Popup) */
+    .modal-content {
+        width: 95%;         /* Hampir memenuhi layar */
+        margin: 10vh auto;  /* Jarak atas sedikit */
+        max-height: 80vh;   /* Jangan sampai mentok atas bawah */
+        padding: 20px;
+    }
+
+    /* 8. TABEL (Agar bisa digeser ke samping) */
+    .table-container {
+        width: 100%;
+        overflow-x: auto;   /* Wajib! Biar tabel bisa digeser kiri-kanan */
+        -webkit-overflow-scrolling: touch; /* Biar scroll licin di iPhone */
+    }
+    
+    /* Opsional: Kecilkan huruf tabel di HP */
+    .loker-table {
+        font-size: 12px; 
+    }
+    
+    .loker-table th, .loker-table td {
+        padding: 8px 5px;   /* Rapatkan jarak tabel */
+    }
+    
+    .status-badge {
+        font-size: 9px;     /* Kecilkan badge status */
+    }
+}
