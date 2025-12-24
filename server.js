@@ -1,29 +1,39 @@
-// server.js - FINAL FIXED (Vercel & Turso Ready)
+// server.js - FIXED VERSION FOR VERCEL
 require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@libsql/client');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const { URL } = require('url');
-const path = require('path'); // Tambahan penting untuk path file
+const path = require('path');
 
 const app = express();
-app.use(express.static(path.join(__dirname)));
-app.use(express.static(path.join(__dirname, 'public')));
 
+// PENTING: Definisi PORT (Ini yang bikin error sebelumnya karena tidak ada)
+const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// PENTING: Mengatur folder untuk file statis (HTML, CSS, JS Frontend)
-// Ini memastikan index.html bisa dibaca oleh Vercel
+// Serving Static Files (HTML/CSS)
+// Prioritas 1: Cek folder public
+app.use(express.static(path.join(__dirname, 'public')));
+// Prioritas 2: Cek root folder (untuk index.html jika ada di luar)
 app.use(express.static(path.join(__dirname)));
 
-// --- 1. KONEKSI DATABASE TURSO ---
+// --- 1. KONEKSI DATABASE TURSO (DIPERBAIKI) ---
+// Menggunakan 'TURSO_DB_URL' sesuai settingan Vercel Anda
+const dbUrl = process.env.TURSO_DB_URL || process.env.TURSO_DATABASE_URL;
+const dbToken = process.env.TURSO_DB_TOKEN || process.env.TURSO_AUTH_TOKEN;
+
+if (!dbUrl || !dbToken) {
+    console.error("❌ ERROR: Kunci Rahasia Database (Environment Variables) belum terbaca!");
+}
+
 const db = createClient({
-    url: process.env.TURSO_DATABASE_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN
+    url: dbUrl,
+    authToken: dbToken
 });
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCpzF6e3ii_aAPaFmU2bhlaeskNlUeIgJdZSo1wnECGhNaUoVVfinlhyE2W5MKwj83eg/exec';
@@ -31,62 +41,57 @@ const SCRIPT_TOKEN = 'L0k3rS3cr3t2025!#';
 
 // --- 2. INISIALISASI DATABASE ---
 async function initializeDatabase() {
-    console.log("🔄 Menghubungkan ke Turso Cloud...");
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS lockers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ownerName TEXT, itemName TEXT, locationCode TEXT, locationType TEXT DEFAULT 'Locker',
-            entryDate TEXT, expirationDate TEXT, status TEXT, keterangan TEXT,
-            manualStatus TEXT, manualNote TEXT, fileIndex TEXT
-        )
-    `);
-    await db.execute(`CREATE TABLE IF NOT EXISTS master_owners (id INTEGER PRIMARY KEY, name TEXT UNIQUE)`);
-    await db.execute(`CREATE TABLE IF NOT EXISTS master_locations (id INTEGER PRIMARY KEY, code TEXT UNIQUE, type TEXT, current_owner TEXT)`);
-    console.log(`✅ Database Turso Siap.`);
+    try {
+        console.log("🔄 Menghubungkan ke Turso Cloud...");
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS lockers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ownerName TEXT, itemName TEXT, locationCode TEXT, locationType TEXT DEFAULT 'Locker',
+                entryDate TEXT, expirationDate TEXT, status TEXT, keterangan TEXT,
+                manualStatus TEXT, manualNote TEXT, fileIndex TEXT
+            )
+        `);
+        await db.execute(`CREATE TABLE IF NOT EXISTS master_owners (id INTEGER PRIMARY KEY, name TEXT UNIQUE)`);
+        await db.execute(`CREATE TABLE IF NOT EXISTS master_locations (id INTEGER PRIMARY KEY, code TEXT UNIQUE, type TEXT, current_owner TEXT)`);
+        console.log(`✅ Database Turso Siap.`);
+    } catch (err) {
+        console.error("❌ Gagal connect database:", err);
+    }
 }
 
 // ==========================================
-// 🚀 ROUTE HALAMAN WEB (FRONTEND)
+// 🚀 ROUTE HALAMAN WEB
 // ==========================================
 
-// 1. Route Utama (Saat membuka website pertama kali)
 app.get('/', (req, res) => {
-    // Mencoba mengirim file index.html
     const indexPath = path.join(__dirname, 'index.html');
     res.sendFile(indexPath, (err) => {
         if (err) {
-            // Jika index.html tidak ada (misal belum diupload), tampilkan pesan ini
-            res.status(500).send('<h1>Server Berjalan! 🚀</h1><p>Tapi file <b>index.html</b> tidak ditemukan. Pastikan file HTML ada di folder yang sama.</p><p>Cek data API di: <a href="/api/lockers">/api/lockers</a></p>');
+            res.status(500).send('<h1>Server Jalan! 🚀</h1><p>Tapi file <b>index.html</b> tidak ketemu. Pastikan sudah diupload.</p>');
         }
     });
 });
 
-// 2. Route Redirect (Penyelamat Error "Cannot GET /loker")
-// Jika user mengetik /loker di browser, kita arahkan ke API datanya
 app.get('/loker', (req, res) => {
     res.redirect('/api/lockers');
 });
 
 // ==========================================
-// 🔌 API ENDPOINTS (BACKEND DATA)
+// 🔌 API ENDPOINTS
 // ==========================================
 
-// GET Data Barang
 app.get('/api/lockers', async (req, res) => {
     try {
         const result = await db.execute(`SELECT *, locationCode AS lockerNumber, fileIndex AS fileIdx FROM lockers`);
         const items = result.rows.map(r => ({ ...r, index: r.fileIdx }));
-
-        // Sorting
         items.sort((a, b) => (a.lockerNumber || '').localeCompare(b.lockerNumber || '', undefined, { numeric: true }));
-
         res.json(items);
     } catch (e) {
+        console.error(e);
         res.status(500).json({ error: e.message });
     }
 });
 
-// Export ke Google Sheets
 app.get('/api/lockers/export', async (req, res) => {
     const type = req.query.type;
     try {
@@ -101,15 +106,14 @@ app.get('/api/lockers/export', async (req, res) => {
         if (type) { sql += ` WHERE locationType = ?`; args.push(type); }
 
         const result = await db.execute({ sql, args });
-        const items = result.rows;
-
+        
         // Kirim ke Apps Script
         const url = new URL(APPS_SCRIPT_URL);
         url.searchParams.append('key', SCRIPT_TOKEN);
         const resp = await fetch(url.toString(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(items)
+            body: JSON.stringify(result.rows)
         });
 
         if (resp.ok) res.json({ msg: `Export ${type || 'ALL'} OK` });
@@ -117,7 +121,6 @@ app.get('/api/lockers/export', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message || e }); }
 });
 
-// Save Master Locker/Rak
 app.post('/api/masters/save-locker', async (req, res) => {
     const { lockerNumber, ownerName, locationType, forceAcquire } = req.body;
     const type = locationType || 'Locker';
@@ -146,7 +149,6 @@ app.post('/api/masters/save-locker', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Cek Status Locker
 app.post('/api/masters/check-locker', async (req, res) => {
     try {
         const result = await db.execute({ sql: 'SELECT * FROM master_locations WHERE code = ?', args: [req.body.lockerNumber] });
@@ -157,7 +159,6 @@ app.post('/api/masters/check-locker', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete Master
 app.delete('/api/masters/:type/:value', async (req, res) => {
     const { type, value } = req.params;
     const v = decodeURIComponent(value);
@@ -173,7 +174,6 @@ app.delete('/api/masters/:type/:value', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Get Master Data
 app.get('/api/masters', async (req, res) => {
     try {
         const resOwners = await db.execute("SELECT name FROM master_owners WHERE name IS NOT NULL ORDER BY name ASC");
@@ -184,7 +184,6 @@ app.get('/api/masters', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }) }
 });
 
-// CRUD Lockers
 app.post('/api/lockers', async (req, r) => {
     const { ownerName, itemName, lockerNumber, locationType, entryDate, expirationDate, keterangan, index } = req.body;
     try {
@@ -222,11 +221,16 @@ app.post('/api/masters/owner', async (req, r) => {
     } catch (e) { r.status(500).json({ error: e.message }); }
 });
 
-// --- JALANKAN SERVER ---
+// --- JALANKAN SERVER (FIXED) ---
+// Memulai koneksi database dulu, baru jalankan server
 initializeDatabase().then(() => {
     app.listen(port, () => {
         console.log(`🚀 Server Turso Ready on port ${port}`);
     });
+}).catch(err => {
+    console.error("Gagal inisialisasi awal:", err);
+    // Tetap jalankan server agar log bisa terbaca di Vercel
+    app.listen(port, () => console.log("Server running in fallback mode"));
 });
 
 module.exports = app;
